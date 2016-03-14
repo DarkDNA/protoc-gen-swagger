@@ -1,0 +1,15 @@
+syntax = "proto3";
+
+package darkdna.common;
+option go_package = "common";
+
+message Profile {
+  // The user's unique DarkDNA ID.
+  string user_id = 1;
+
+  // The user's "real name"
+  string real_name = 2;
+
+  // The permissions this user has.
+  repeated string permissions = 3;
+}

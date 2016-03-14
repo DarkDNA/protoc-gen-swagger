@@ -1,0 +1,49 @@
+syntax = "proto3";
+
+package darkdna.api;
+option go_package = "api";
+
+import "google/protobuf/descriptor.proto";
+
+// The error message that is the error of the message.
+message Error {
+  // The actual error message itself.
+  string error = 1;
+}
+
+message ApiRule {
+  string title = 1;
+  string version = 2;
+  string base_uri = 3;
+  string host = 4;
+}
+
+message CodesRule {
+  string okay = 1;
+
+  string not_found = 2;
+}
+
+extend google.protobuf.FileOptions {
+  ApiRule info = 28307350;
+}
+
+extend google.protobuf.MethodOptions {
+  string description = 28307347;
+}
+
+extend google.protobuf.MethodOptions {
+  repeated string tags = 28307348;
+}
+
+extend google.protobuf.MethodOptions {
+  string summary = 28307349;
+}
+
+extend google.protobuf.MethodOptions {
+  CodesRule codes = 28307351;
+}
+
+extend google.protobuf.MethodOptions {
+  repeated string scopes = 28307352;
+}
