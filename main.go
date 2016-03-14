@@ -339,21 +339,59 @@ func main() {
 			}
 		}
 
+		for _, schema := range schemas {
+			if schema.Properties != nil {
+				for name, prop := range schema.Properties {
+					if strings.HasSuffix(prop.Ref, "Entry") && prop.Type == "object" {
+						refSchema := schemas[prop.Ref[14:]]
+						if refSchema == nil {
+							// This will be caught later on.
+							continue
+						}
+
+						if refSchema.Type == "object" && refSchema.AdditionalProperties != nil {
+							schema.Properties[name] = refSchema
+						}
+					}
+				}
+			}
+		}
+
 		for {
 			startLen := len(used)
 
-			for typ, schema := range schemas {
-				if isUsed, _ := used[typ]; isUsed {
-					for _, v := range schema.Properties {
-						if v.Ref != "" {
-							used[v.Ref[14:]] = true
-						}
+			for name, _ := range used {
+				schema := schemas[name]
+				if schema == nil {
+					fmt.Fprintf(os.Stderr, "Failed to look-up schema: %q\n", name)
+					continue
+				}
 
-						if v.Items != nil {
-							if v.Items.Ref != "" {
-								used[v.Items.Ref[14:]] = true
+				if schema.Properties != nil {
+					for _, field := range schema.Properties {
+						if field.Type == "array" {
+							if field.Items.Ref != "" {
+								used[field.Items.Ref[14:]] = true
+							}
+						} else if field.Type == "object" {
+							if field.Ref != "" {
+								used[field.Ref[14:]] = true
+							}
+
+							if field.AdditionalProperties != nil {
+								if field.AdditionalProperties.Ref != "" {
+									used[field.AdditionalProperties.Ref[14:]] = true
+								}
 							}
 						}
+					}
+				} else if schema.AdditionalProperties != nil {
+					if schema.AdditionalProperties.Ref != "" {
+						used[schema.AdditionalProperties.Ref[14:]] = true
+					}
+				} else if schema.Type == "array" {
+					if schema.Ref != "" {
+						used[schema.Ref[14:]] = true
 					}
 				}
 			}
