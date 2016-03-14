@@ -1,16 +1,16 @@
 package main
 
 type Document struct {
-	Version     string            `json:"swagger"`
-	Host        string            `json:"host"`
-	BasePath    string            `json:"basePath"`
-	Schemes     []string          `json:"schemes"`
-	Consumes    []string          `json:"consumes"`
-	Produces    []string          `json:"produces"`
-	Information Info              `json:"info"`
-	Methods     map[string]Path   `json:"paths"`
-	Schemas     map[string]Schema `json:"definitions"`
-	Tags        []Tag             `json:"tags"`
+	Version     string             `json:"swagger"`
+	Host        string             `json:"host"`
+	BasePath    string             `json:"basePath"`
+	Schemes     []string           `json:"schemes"`
+	Consumes    []string           `json:"consumes"`
+	Produces    []string           `json:"produces"`
+	Information Info               `json:"info"`
+	Methods     map[string]Path    `json:"paths"`
+	Schemas     map[string]*Schema `json:"definitions"`
+	Tags        []Tag              `json:"tags"`
 }
 
 type Info struct {
@@ -37,7 +37,7 @@ type Response struct {
 type Position string
 
 const (
-	QueryPos    Position = "query"
+	QueryPos Position = "query"
 
 	HeaderPos   Position = "header"
 	PathPos     Position = "path"
@@ -56,13 +56,15 @@ type Parameter struct {
 }
 
 type Schema struct {
-	Format      string            `json:"format,omitempty"`
-	Type        string            `json:"type,omitempty"`
-	Properties  map[string]Schema `json:"properties,omitempty"`
-	Ref         string            `json:"$ref,omitempty"`
-	Description string            `json:"description,omitempty"`
-	Items       *Schema           `json:"items,omitempty"`
-	EnumValues  []string          `json:"enum,omitempty"`
+	Format               string             `json:"format,omitempty"`
+	Title                string             `json:"title,omitempty"`
+	Type                 string             `json:"type,omitempty"`
+	Properties           map[string]*Schema `json:"properties,omitempty"`
+	AdditionalProperties *Schema            `json:"additionalProperties,omitempty"`
+	Ref                  string             `json:"$ref,omitempty"`
+	Description          string             `json:"description,omitempty"`
+	Items                *Schema            `json:"items,omitempty"`
+	EnumValues           []string           `json:"enum,omitempty"`
 }
 
 type Tag struct {

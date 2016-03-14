@@ -17,7 +17,7 @@ import (
 )
 
 var used = map[string]bool{}
-var schemas = map[string]Schema{}
+var schemas = map[string]*Schema{}
 
 func makeMethod(output Document, comment, url string, svc *descriptor.ServiceDescriptorProto, opts *descriptor.MethodDescriptorProto) Operation {
 	parts := strings.SplitN(comment, "\n", 2)
@@ -102,45 +102,90 @@ func makeMethod(output Document, comment, url string, svc *descriptor.ServiceDes
 	return op
 }
 
-func makeSchema(comment string, opts *descriptor.FieldDescriptorProto) Schema {
-	field := Schema{
-		Description: comment,
-	}
+func messageSchema(file *descriptor.FileDescriptorProto, message *descriptor.DescriptorProto, path ...int) *Schema {
+	if message.GetOptions() != nil && message.GetOptions().GetMapEntry() {
+		return &Schema{
+			Type:        "object",
+			Description: getComment(file, path...),
 
-	switch opts.GetType() {
-	case descriptor.FieldDescriptorProto_TYPE_BOOL:
-		field.Type = "bool"
-
-	case descriptor.FieldDescriptorProto_TYPE_INT32:
-		field.Type = "integer"
-		field.Format = "int32"
-
-	case descriptor.FieldDescriptorProto_TYPE_INT64:
-		field.Type = "integer"
-		field.Format = "int64"
-
-	case descriptor.FieldDescriptorProto_TYPE_MESSAGE:
-		field.Ref = "#/definitions/" + opts.GetTypeName()[1:]
-
-	case descriptor.FieldDescriptorProto_TYPE_ENUM:
-		field.Type = "string"
-		field.Ref = "#/definitions/" + opts.GetTypeName()[1:]
-
-	default:
-		field.Type = "string"
-	}
-
-	if opts.GetLabel() == descriptor.FieldDescriptorProto_LABEL_REPEATED {
-		field.Description = ""
-
-		return Schema{
-			Description: comment,
-			Type:        "array",
-			Items:       &field,
+			AdditionalProperties: fieldSchema(file, message.Field[1], path...),
 		}
 	}
 
-	return field
+	ret := &Schema{
+		Type:       "object",
+		Properties: map[string]*Schema{},
+
+		Description: getComment(file, path...),
+	}
+
+	for fid, field := range message.Field {
+		fieldPath := append(path[:], 2, fid)
+
+		ret.Properties[field.GetName()] = fieldSchema(file, field, fieldPath...)
+	}
+
+	return ret
+}
+
+func fieldSchema(file *descriptor.FileDescriptorProto, field *descriptor.FieldDescriptorProto, path ...int) *Schema {
+	f := &Schema{}
+
+	switch field.GetType() {
+	case descriptor.FieldDescriptorProto_TYPE_BOOL:
+		f.Type = "boolean"
+
+	case descriptor.FieldDescriptorProto_TYPE_INT32:
+		fallthrough
+	case descriptor.FieldDescriptorProto_TYPE_INT64:
+		f.Type = "integer"
+
+	case descriptor.FieldDescriptorProto_TYPE_UINT32:
+		fallthrough
+	case descriptor.FieldDescriptorProto_TYPE_UINT64:
+		f.Type = "integer"
+
+	case descriptor.FieldDescriptorProto_TYPE_FIXED32:
+		fallthrough
+	case descriptor.FieldDescriptorProto_TYPE_FIXED64:
+		fallthrough
+	case descriptor.FieldDescriptorProto_TYPE_DOUBLE:
+		fallthrough
+	case descriptor.FieldDescriptorProto_TYPE_FLOAT:
+		f.Type = "number"
+
+	case descriptor.FieldDescriptorProto_TYPE_ENUM:
+		// TODO: Enumerate the enum types.
+
+		f.Type = "string"
+
+	case descriptor.FieldDescriptorProto_TYPE_STRING:
+		f.Type = "string"
+
+	case descriptor.FieldDescriptorProto_TYPE_MESSAGE:
+		if field.GetTypeName() == "" {
+			return nil
+		}
+
+		f.Type = "object"
+		f.Ref = "#/definitions/" + field.GetTypeName()[1:]
+	}
+
+	if field.GetLabel() == descriptor.FieldDescriptorProto_LABEL_REPEATED {
+		if !strings.HasSuffix(f.Ref, "Entry") {
+			f = &Schema{
+				Type:  "array",
+				Items: f,
+			}
+		}
+	}
+
+	if f.Ref == "" {
+		f.Title = field.GetName()
+		f.Description = getComment(file, path...)
+	}
+
+	return f
 }
 
 func getComment(file *descriptor.FileDescriptorProto, path ...int) string {
@@ -193,7 +238,7 @@ func main() {
 		Produces: []string{"application/json"},
 		Consumes: []string{},
 		Methods:  make(map[string]Path),
-		Schemas:  make(map[string]Schema),
+		Schemas:  make(map[string]*Schema),
 	}
 
 	var services []*descriptor.FileDescriptorProto
@@ -210,21 +255,18 @@ func main() {
 			output.BasePath = ext.BaseUri
 		}
 
-		for i, msg := range file.MessageType {
-			schema := Schema{
-				Type:       "object",
-				Properties: make(map[string]Schema),
-			}
+		for messageID, message := range file.GetMessageType() {
+			typ, sch := file.GetPackage()+"."+message.GetName(), messageSchema(file, message, 2, messageID)
+			schemas[typ] = sch
 
-			for fieldID, field := range msg.Field {
-				schema.Properties[*field.Name] = makeSchema(getComment(file, 4, i, 2, fieldID), field)
+			for msgID, msg := range message.GetNestedType() {
+				typ, sch := typ+"."+msg.GetName(), messageSchema(file, msg, 2, messageID, 3, msgID)
+				schemas[typ] = sch
 			}
-
-			schemas[file.GetPackage()+"."+msg.GetName()] = schema
 		}
 
 		for _, enum := range file.EnumType {
-			schema := Schema{
+			schema := &Schema{
 				Type: "string",
 			}
 
@@ -269,13 +311,13 @@ func main() {
 
 						if httpOpts, ok := ext.(*google_api.HttpRule); ok {
 							if httpOpts.GetGet() != "" {
-								methodSchema.Verb = "GET"
+								methodSchema.Verb = "get"
 								methodSchema.Path = httpOpts.GetGet()
 							} else if httpOpts.GetPost() != "" {
-								methodSchema.Verb = "POST"
+								methodSchema.Verb = "post"
 								methodSchema.Path = httpOpts.GetPost()
 							} else if httpOpts.GetPut() != "" {
-								methodSchema.Verb = "PUT"
+								methodSchema.Verb = "put"
 								methodSchema.Path = httpOpts.GetPut()
 							} else {
 								// TODO: Error?
@@ -304,7 +346,13 @@ func main() {
 				if isUsed, _ := used[typ]; isUsed {
 					for _, v := range schema.Properties {
 						if v.Ref != "" {
-							used[v.Ref[14:len(v.Ref)]] = true
+							used[v.Ref[14:]] = true
+						}
+
+						if v.Items != nil {
+							if v.Items.Ref != "" {
+								used[v.Items.Ref[14:]] = true
+							}
 						}
 					}
 				}
