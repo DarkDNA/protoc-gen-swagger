@@ -9,13 +9,20 @@ import "google/protobuf/descriptor.proto";
 message Error {
   // The actual error message itself.
   string error = 1;
+  int32 code = 2;
+}
+
+message SecurityRule {
+  repeated string scopes = 1;
+  repeated string permissionGroups = 2;
 }
 
 message ApiRule {
   string title = 1;
   string version = 2;
-  string base_uri = 3;
-  string host = 4;
+  string name = 5;
+
+  SecurityRule security = 6;
 }
 
 message CodesRule {
@@ -24,12 +31,23 @@ message CodesRule {
   string not_found = 2;
 }
 
+enum ExtendedFormat {
+  // Specifies that this is a Unix Timestamp. Only applies to int64 object types.
+  TIMESTAMP = 0;
+}
+
+// Next ID: 28307355
+
 extend google.protobuf.FileOptions {
   ApiRule info = 28307350;
 }
 
 extend google.protobuf.MethodOptions {
   string description = 28307347;
+}
+
+extend google.protobuf.MethodOptions {
+  SecurityRule security = 28307354;
 }
 
 extend google.protobuf.MethodOptions {
@@ -46,4 +64,8 @@ extend google.protobuf.MethodOptions {
 
 extend google.protobuf.MethodOptions {
   repeated string scopes = 28307352;
+}
+
+extend google.protobuf.FieldOptions {
+  ExtendedFormat format = 28307353;
 }

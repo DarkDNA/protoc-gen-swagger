@@ -251,8 +251,8 @@ func main() {
 			output.Information.Title = ext.Title
 			output.Information.Version = ext.Version
 
-			output.Host = ext.Host
-			output.BasePath = ext.BaseUri
+			output.BasePath = "/" + ext.Name + "/" + ext.Version
+			output.Host = "localhost"
 		}
 
 		for messageID, message := range file.GetMessageType() {
