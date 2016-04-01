@@ -77,7 +77,6 @@ func makeMethod(output Document, comment, url string, svc *descriptor.ServiceDes
 		}
 
 		if ext.NotFound != "" {
-			used["darkdna.api.Error"] = true
 
 			op.Results["404"] = Response{
 				Schema: Schema{
@@ -240,6 +239,9 @@ func main() {
 		Methods:  make(map[string]Path),
 		Schemas:  make(map[string]*Schema),
 	}
+
+	// Always include the darkdna.api.Error type.
+	used["darkdna.api.Error"] = true
 
 	var services []*descriptor.FileDescriptorProto
 
